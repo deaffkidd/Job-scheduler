@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Chadds Maintenance Schedules</title>
+    <title> Trane Maintenance Schedule </title>
     <style>
         /* BASIC STYLING FOR MOBILE VIEW */
         body {
@@ -34,6 +34,18 @@
             border: none;
             cursor: pointer;
             margin-top: 15px;
+        }
+        
+        /* STYLING FOR LOGOUT BUTTON (TOP RIGHT) */
+        #logout-button {
+            background-color: #6c757d; /* Gray color for logout */
+            color: white;
+            border: none;
+            padding: 8px;
+            cursor: pointer;
+            margin: 10px 0;
+            width: auto; /* Override 100% width from form styles */
+            float: right;
         }
 
         /* STYLING FOR JOB LIST */
@@ -96,6 +108,7 @@
     </div>
 
     <div id="app-content" style="display: none;"> 
+        <button id="logout-button" onclick="logOut()">Log Out</button>
         <h1>Job Scheduler Pro</h1>
 
         <section id="add-job">
@@ -133,30 +146,49 @@
     </div>
     
     <script>
-        // --- CONFIGURATION: SET YOUR USERNAME AND PASSWORD HERE ---
-        const CORRECT_USERNAME = 'Deaffkidd'; // <-- CHANGE THIS
-        const CORRECT_PASSWORD = 'Harleydavidson2025'; // <-- CHANGE THIS
+        // --- CONFIGURATION: SET YOUR USERS HERE ---
+        // Format: 'username': 'password'
+        const USERS = {
+            'Deaffkidd': 'Harleydavidson2025',
+            'briankirk': 'cryinbrian', 
+            
+            // Add more users as needed
+        };
         // -----------------------------------------------------------
 
         // =========================================================
         // JOB SCHEDULER FUNCTIONS
         // =========================================================
         
-        // Data Management
+        // Data Management - UPDATED for multi-user support
+        function getCurrentUserKey() {
+            // This key will be unique for each user's data in localStorage
+            const username = sessionStorage.getItem('currentUsername');
+            return username ? `maintenanceJobs_${username}` : null;
+        }
+        
         function saveJobs(jobs) {
-            localStorage.setItem('maintenanceJobs', JSON.stringify(jobs));
+            const key = getCurrentUserKey();
+            if (key) {
+                localStorage.setItem(key, JSON.stringify(jobs));
+            }
         }
 
         function loadJobs() {
-            const jobsString = localStorage.getItem('maintenanceJobs');
-            return jobsString ? JSON.parse(jobsString) : [];
+            const key = getCurrentUserKey();
+            if (key) {
+                const jobsString = localStorage.getItem(key);
+                return jobsString ? JSON.parse(jobsString) : [];
+            }
+            return []; 
         }
 
         // Calculation
         function calculateNextDueDate(lastCompletedDate, frequencyDays) {
             const lastDate = new Date(lastCompletedDate);
             const nextDate = new Date(lastDate);
-            nextDate.setDate(nextDate.getDate() + parseInt(frequencyDays));
+            // Ensure frequencyDays is treated as a number
+            nextDate.setDate(nextDate.getDate() + parseInt(frequencyDays)); 
             return nextDate.toISOString().split('T')[0];
         }
 
@@ -174,6 +206,8 @@
                 
                 // Reminder Logic: Highlight if due in the next 7 days
                 const today = new Date();
+                // Set the time of today to midnight for fair comparison
+                today.setHours(0, 0, 0, 0); 
                 const nextDue = new Date(job.nextDueDate);
                 const timeDiff = nextDue.getTime() - today.getTime();
                 const dayDiff = Math.ceil(timeDiff / (1000 * 3600 * 24));
@@ -182,12 +216,16 @@
                     li.classList.add('due-soon');
                 }
 
+                // Added buttons for Mark Completed and Delete Job (with Flex styling)
                 li.innerHTML = `
                     <strong>Customer:</strong> ${job.customer}<br>
                     <strong>Task:</strong> ${job.task}<br>
                     <strong>Next Due:</strong> ${job.nextDueDate} (${dayDiff} days away)<br>
                     <small>Frequency: ${job.frequencyDays} days</small>
-                    <button onclick="markCompleted(${index})" style="margin-top: 10px; background-color: #28a745; color: white;">Mark Completed Today</button>
+                    <div style="display: flex; gap: 10px; margin-top: 10px;">
+                        <button onclick="markCompleted(${index})" style="flex-grow: 1; background-color: #28a745; color: white;">Mark Completed Today</button>
+                        <button onclick="deleteJob(${index})" style="flex-grow: 1; background-color: #dc3545; color: white;">Delete Job</button>
+                    </div>
                 `;
                 jobListElement.appendChild(li);
             });
@@ -207,6 +245,21 @@
             alert(`Task for ${job.customer} completed. Next due date updated to ${job.nextDueDate}.`);
         }
         
+        // New Action: Delete Job
+        function deleteJob(index) {
+            if (confirm("Are you sure you want to delete this job? This action cannot be undone.")) {
+                const jobs = loadJobs();
+                const jobToDelete = jobs[index];
+
+                // Remove the job from the array using its index
+                jobs.splice(index, 1);
+                
+                saveJobs(jobs);
+                renderJobs();
+                alert(`Task for ${jobToDelete.customer} has been permanently deleted.`);
+            }
+        }
+        
         // =========================================================
         // LOGIN & INITIALIZATION LOGIC
         // =========================================================
@@ -217,9 +270,26 @@
             renderJobs(); // Load the jobs once the user is in
         }
 
+        // NEW FUNCTION: Log Out
+        function logOut() {
+            // Clear the session data
+            sessionStorage.removeItem('isLoggedIn');
+            sessionStorage.removeItem('currentUsername');
+            
+            // Show the login screen
+            document.getElementById('app-content').style.display = 'none';
+            document.getElementById('login-container').style.display = 'block';
+            
+            // Optional: Clear form fields
+            document.getElementById('username').value = ''; 
+            document.getElementById('password').value = ''; 
+            
+            alert('You have been logged out.');
+        }
+
         function checkLoginStatus() {
             // Check the browser's Session Storage for a flag
-            if (sessionStorage.getItem('isLoggedIn') === 'true') {
+            if (sessionStorage.getItem('isLoggedIn') === 'true' && sessionStorage.getItem('currentUsername')) {
                 showApp();
             } else {
                 // If not logged in, show the login form
@@ -260,7 +330,7 @@
             alert('New Job Schedule Saved!');
         });
         
-        // Handle login form submission
+        // Handle login form submission - UPDATED for multi-user array
         document.getElementById('login-form').addEventListener('submit', function(event) {
             event.preventDefault();
 
@@ -268,9 +338,12 @@
             const enteredPassword = document.getElementById('password').value;
             const errorMsg = document.getElementById('login-error');
 
-            if (enteredUsername === CORRECT_USERNAME && enteredPassword === CORRECT_PASSWORD) {
-                // Successful login: Set flag in Session Storage and show app
+            // Check if the username exists AND the password matches
+            if (USERS[enteredUsername] && USERS[enteredUsername] === enteredPassword) {
+                // Successful login: Set flag AND store the username
                 sessionStorage.setItem('isLoggedIn', 'true');
+                sessionStorage.setItem('currentUsername', enteredUsername); // <-- Crucial for data keys
+                
                 errorMsg.style.display = 'none';
                 showApp();
             } else {
