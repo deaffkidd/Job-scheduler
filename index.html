@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Job Scheduler Pro</title>
+    <style>
+        /* BASIC STYLING FOR MOBILE VIEW */
+        body {
+            font-family: Arial, sans-serif;
+            padding: 10px;
+            max-width: 600px;
+            margin: 0 auto;
+            background-color: #f4f4f9;
+        }
+
+        h1, h2 {
+            color: #333;
+            text-align: center;
+        }
+        
+        /* STYLING FOR FORMS AND INPUTS */
+        form label, form input, form select, form button {
+            display: block;
+            width: 100%;
+            margin-top: 8px;
+            padding: 10px;
+            box-sizing: border-box;
+        }
+
+        form button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            cursor: pointer;
+            margin-top: 15px;
+        }
+
+        /* STYLING FOR JOB LIST */
+        #job-list {
+            list-style: none;
+            padding: 0;
+        }
+
+        #job-list li {
+            background-color: white;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 10px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        /* REMINDER STYLING: HIGHLIGHTS JOBS DUE SOON */
+        .due-soon {
+            border-left: 5px solid red;
+            font-weight: bold;
+            background-color: #ffebeb; 
+        }
+
+        /* STYLING FOR LOGIN FORM */
+        #login-container {
+            padding: 20px;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            max-width: 300px;
+            margin: 50px auto;
+            background-color: white;
+            text-align: center;
+            /* Hidden by default, shown by JS */
+            display: none; 
+        }
+        #login-container input, #login-container button {
+            margin-bottom: 15px;
+        }
+        #login-error {
+            display: none;
+            color: red;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    
+    <div id="login-container">
+        <h2>Job Scheduler Login</h2>
+        <p id="login-error">Invalid Username or Password</p>
+        <form id="login-form">
+            <label for="username">Username:</label>
+            <input type="text" id="username" required><br>
+
+            <label for="password">Password:</label>
+            <input type="password" id="password" required><br>
+
+            <button type="submit">Log In</button>
+        </form>
+    </div>
+
+    <div id="app-content" style="display: none;"> 
+        <h1>Job Scheduler Pro</h1>
+
+        <section id="add-job">
+            <h2>Add New Job Schedule</h2>
+            <form id="job-form">
+                <label for="customer">Customer Name:</label>
+                <input type="text" id="customer" required><br>
+
+                <label for="task">Task/Maintenance:</label>
+                <input type="text" id="task" required><br>
+
+                <label for="last-completed">Last Completed Date:</label>
+                <input type="date" id="last-completed" required><br>
+
+                <label for="frequency">Schedule Frequency:</label>
+                <select id="frequency" required>
+                    <option value="7">Weekly (7 days)</option>
+                    <option value="30">Monthly (30 days)</option>
+                    <option value="90">Quarterly (90 days)</option>
+                    <option value="180">Semi-Annual (180 days)</option>
+                    <option value="365">Annual (365 days)</option>
+                </select><br>
+
+                <button type="submit">Save Schedule</button>
+            </form>
+        </section>
+
+        <hr>
+
+        <section id="upcoming-jobs">
+            <h2>Upcoming Maintenance</h2>
+            <ul id="job-list">
+                </ul>
+        </section>
+    </div>
+    
+    <script>
+        // --- CONFIGURATION: SET YOUR USERNAME AND PASSWORD HERE ---
+        const CORRECT_USERNAME = 'myadmin'; // <-- CHANGE THIS
+        const CORRECT_PASSWORD = 'securepassword123'; // <-- CHANGE THIS
+        // -----------------------------------------------------------
+
+        // =========================================================
+        // JOB SCHEDULER FUNCTIONS
+        // =========================================================
+        
+        // Data Management
+        function saveJobs(jobs) {
+            localStorage.setItem('maintenanceJobs', JSON.stringify(jobs));
+        }
+
+        function loadJobs() {
+            const jobsString = localStorage.getItem('maintenanceJobs');
+            return jobsString ? JSON.parse(jobsString) : [];
+        }
+
+        // Calculation
+        function calculateNextDueDate(lastCompletedDate, frequencyDays) {
+            const lastDate = new Date(lastCompletedDate);
+            const nextDate = new Date(lastDate);
+            nextDate.setDate(nextDate.getDate() + parseInt(frequencyDays));
+            return nextDate.toISOString().split('T')[0];
+        }
+
+        // Display
+        function renderJobs() {
+            const jobs = loadJobs();
+            const jobListElement = document.getElementById('job-list');
+            jobListElement.innerHTML = ''; 
+
+            // Sort jobs so the next due ones appear at the top
+            jobs.sort((a, b) => new Date(a.nextDueDate) - new Date(b.nextDueDate));
+
+            jobs.forEach((job, index) => {
+                const li = document.createElement('li');
+                
+                // Reminder Logic: Highlight if due in the next 7 days
+                const today = new Date();
+                const nextDue = new Date(job.nextDueDate);
+                const timeDiff = nextDue.getTime() - today.getTime();
+                const dayDiff = Math.ceil(timeDiff / (1000 * 3600 * 24));
+
+                if (dayDiff <= 7 && dayDiff >= 0) {
+                    li.classList.add('due-soon');
+                }
+
+                li.innerHTML = `
+                    <strong>Customer:</strong> ${job.customer}<br>
+                    <strong>Task:</strong> ${job.task}<br>
+                    <strong>Next Due:</strong> ${job.nextDueDate} (${dayDiff} days away)<br>
+                    <small>Frequency: ${job.frequencyDays} days</small>
+                    <button onclick="markCompleted(${index})" style="margin-top: 10px; background-color: #28a745; color: white;">Mark Completed Today</button>
+                `;
+                jobListElement.appendChild(li);
+            });
+        }
+
+        // Action
+        function markCompleted(index) {
+            const jobs = loadJobs();
+            const job = jobs[index];
+
+            const today = new Date().toISOString().split('T')[0];
+            job.lastCompletedDate = today;
+            job.nextDueDate = calculateNextDueDate(today, job.frequencyDays);
+            
+            saveJobs(jobs);
+            renderJobs();
+            alert(`Task for ${job.customer} completed. Next due date updated to ${job.nextDueDate}.`);
+        }
+        
+        // =========================================================
+        // LOGIN & INITIALIZATION LOGIC
+        // =========================================================
+        
+        function showApp() {
+            document.getElementById('login-container').style.display = 'none';
+            document.getElementById('app-content').style.display = 'block';
+            renderJobs(); // Load the jobs once the user is in
+        }
+
+        function checkLoginStatus() {
+            // Check the browser's Session Storage for a flag
+            if (sessionStorage.getItem('isLoggedIn') === 'true') {
+                showApp();
+            } else {
+                // If not logged in, show the login form
+                document.getElementById('login-container').style.display = 'block';
+                document.getElementById('app-content').style.display = 'none';
+            }
+        }
+        
+        // =========================================================
+        // EVENT LISTENERS
+        // =========================================================
+
+        // Handle job form submission
+        document.getElementById('job-form').addEventListener('submit', function(event) {
+            event.preventDefault();
+
+            const customer = document.getElementById('customer').value;
+            const task = document.getElementById('task').value;
+            const lastCompletedDate = document.getElementById('last-completed').value;
+            const frequencyDays = document.getElementById('frequency').value;
+
+            const nextDueDate = calculateNextDueDate(lastCompletedDate, frequencyDays);
+
+            const newJob = {
+                customer: customer,
+                task: task,
+                lastCompletedDate: lastCompletedDate,
+                frequencyDays: frequencyDays,
+                nextDueDate: nextDueDate
+            };
+
+            const jobs = loadJobs();
+            jobs.push(newJob);
+            saveJobs(jobs);
+
+            document.getElementById('job-form').reset();
+            renderJobs();
+            alert('New Job Schedule Saved!');
+        });
+        
+        // Handle login form submission
+        document.getElementById('login-form').addEventListener('submit', function(event) {
+            event.preventDefault();
+
+            const enteredUsername = document.getElementById('username').value;
+            const enteredPassword = document.getElementById('password').value;
+            const errorMsg = document.getElementById('login-error');
+
+            if (enteredUsername === CORRECT_USERNAME && enteredPassword === CORRECT_PASSWORD) {
+                // Successful login: Set flag in Session Storage and show app
+                sessionStorage.setItem('isLoggedIn', 'true');
+                errorMsg.style.display = 'none';
+                showApp();
+            } else {
+                // Failed login: Show error message
+                errorMsg.style.display = 'block';
+                document.getElementById('password').value = ''; // Clear password field
+            }
+        });
+
+        // Run this when the page first loads
+        document.addEventListener('DOMContentLoaded', checkLoginStatus);
+
+    </script>
+</body>
+</html>
