@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title> Trane Maintenance Schedule </title>
+    <title>Chadds Maintenance Schedules</title>
     <style>
         /* BASIC STYLING FOR MOBILE VIEW */
         body {
@@ -69,7 +69,7 @@
             background-color: #ffebeb; 
         }
 
-        /* STYLING FOR LOGIN FORM */
+        /* STYLING FOR LOGIN/REGISTER FORM */
         #login-container {
             padding: 20px;
             border: 1px solid #ccc;
@@ -84,7 +84,7 @@
         #login-container input, #login-container button {
             margin-bottom: 15px;
         }
-        #login-error {
+        #login-error, #register-error { /* Added register-error */
             display: none;
             color: red;
             font-weight: bold;
@@ -94,17 +94,25 @@
 <body>
     
     <div id="login-container">
-        <h2>Job Scheduler Login</h2>
+        <h2 id="auth-title">Job Scheduler Login</h2>
         <p id="login-error">Invalid Username or Password</p>
-        <form id="login-form">
-            <label for="username">Username:</label>
+        <p id="register-error" style="display: none; color: red; font-weight: bold;"></p>
+        
+        <form id="auth-form"> <label for="username">Username:</label>
             <input type="text" id="username" required><br>
 
             <label for="password">Password:</label>
             <input type="password" id="password" required><br>
 
-            <button type="submit">Log In</button>
+            <button type="submit" id="auth-button">Log In</button>
         </form>
+
+        <hr style="margin-top: 20px;">
+        
+        <p id="toggle-text">
+            Don't have an account? 
+            <a href="#" onclick="toggleAuthMode(true); return false;">Register Here</a>
+        </p>
     </div>
 
     <div id="app-content" style="display: none;"> 
@@ -146,21 +154,26 @@
     </div>
     
     <script>
-        // --- CONFIGURATION: SET YOUR USERS HERE ---
-        // Format: 'username': 'password'
-        const USERS = {
-            'Deaffkidd': 'Harleydavidson2025',
-            'briankirk': 'cryinbrian', 
-            
-            // Add more users as needed
-        };
+        // --- CONFIGURATION: Dynamic User Management Functions ---
+        const USER_STORAGE_KEY = 'allAppUsers';
+        let isRegisterMode = false; // Tracks the current mode of the auth form
+
+        function loadAllUsers() {
+            const usersString = localStorage.getItem(USER_STORAGE_KEY);
+            // Returns the user map, or an empty object if none is found
+            return usersString ? JSON.parse(usersString) : {}; 
+        }
+
+        function saveAllUsers(users) {
+            localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(users));
+        }
         // -----------------------------------------------------------
 
         // =========================================================
         // JOB SCHEDULER FUNCTIONS
         // =========================================================
         
-        // Data Management - UPDATED for multi-user support
+        // Data Management - User-specific storage key
         function getCurrentUserKey() {
             // This key will be unique for each user's data in localStorage
             const username = sessionStorage.getItem('currentUsername');
@@ -187,7 +200,6 @@
         function calculateNextDueDate(lastCompletedDate, frequencyDays) {
             const lastDate = new Date(lastCompletedDate);
             const nextDate = new Date(lastDate);
-            // Ensure frequencyDays is treated as a number
             nextDate.setDate(nextDate.getDate() + parseInt(frequencyDays)); 
             return nextDate.toISOString().split('T')[0];
         }
@@ -198,7 +210,6 @@
             const jobListElement = document.getElementById('job-list');
             jobListElement.innerHTML = ''; 
 
-            // Sort jobs so the next due ones appear at the top
             jobs.sort((a, b) => new Date(a.nextDueDate) - new Date(b.nextDueDate));
 
             jobs.forEach((job, index) => {
@@ -206,7 +217,6 @@
                 
                 // Reminder Logic: Highlight if due in the next 7 days
                 const today = new Date();
-                // Set the time of today to midnight for fair comparison
                 today.setHours(0, 0, 0, 0); 
                 const nextDue = new Date(job.nextDueDate);
                 const timeDiff = nextDue.getTime() - today.getTime();
@@ -231,7 +241,7 @@
             });
         }
 
-        // Action
+        // Action: Mark Completed
         function markCompleted(index) {
             const jobs = loadJobs();
             const job = jobs[index];
@@ -245,13 +255,12 @@
             alert(`Task for ${job.customer} completed. Next due date updated to ${job.nextDueDate}.`);
         }
         
-        // New Action: Delete Job
+        // Action: Delete Job
         function deleteJob(index) {
             if (confirm("Are you sure you want to delete this job? This action cannot be undone.")) {
                 const jobs = loadJobs();
                 const jobToDelete = jobs[index];
 
-                // Remove the job from the array using its index
                 jobs.splice(index, 1);
                 
                 saveJobs(jobs);
@@ -261,26 +270,69 @@
         }
         
         // =========================================================
-        // LOGIN & INITIALIZATION LOGIC
+        // LOGIN/REGISTER & INITIALIZATION LOGIC
         // =========================================================
         
         function showApp() {
             document.getElementById('login-container').style.display = 'none';
             document.getElementById('app-content').style.display = 'block';
-            renderJobs(); // Load the jobs once the user is in
+            renderJobs(); 
         }
 
-        // NEW FUNCTION: Log Out
+        // NEW FUNCTION: Toggles between Login and Register mode
+        function toggleAuthMode(register) {
+            isRegisterMode = register;
+            document.getElementById('auth-title').textContent = isRegisterMode ? 'New User Registration' : 'Job Scheduler Login';
+            document.getElementById('auth-button').textContent = isRegisterMode ? 'Create Account' : 'Log In';
+            
+            // Toggle error messages visibility
+            document.getElementById('login-error').style.display = 'none';
+            document.getElementById('register-error').style.display = 'none';
+            
+            // Toggle the link text
+            document.getElementById('toggle-text').innerHTML = isRegisterMode 
+                ? 'Already have an account? <a href="#" onclick="toggleAuthMode(false); return false;">Log In Here</a>' 
+                : 'Don\'t have an account? <a href="#" onclick="toggleAuthMode(true); return false;">Register Here</a>';
+        }
+
+        // NEW FUNCTION: Handles User Registration
+        function registerUser(username, password) {
+            const users = loadAllUsers();
+            const errorMsg = document.getElementById('register-error');
+            errorMsg.style.display = 'none';
+
+            if (users[username]) {
+                errorMsg.textContent = 'Username already taken. Please choose another.';
+                errorMsg.style.display = 'block';
+                return false;
+            }
+            
+            // Simple validation (can be expanded)
+            if (username.length < 4 || password.length < 6) {
+                errorMsg.textContent = 'Username must be at least 4 characters and Password at least 6 characters.';
+                errorMsg.style.display = 'block';
+                return false;
+            }
+
+            // Save the new user
+            users[username] = password;
+            saveAllUsers(users);
+
+            alert(`Account created successfully for ${username}! Please log in.`);
+            toggleAuthMode(false); // Switch back to login mode
+            
+            return true;
+        }
+
+        // Log Out
         function logOut() {
-            // Clear the session data
             sessionStorage.removeItem('isLoggedIn');
             sessionStorage.removeItem('currentUsername');
             
-            // Show the login screen
             document.getElementById('app-content').style.display = 'none';
             document.getElementById('login-container').style.display = 'block';
             
-            // Optional: Clear form fields
+            // Clear form fields
             document.getElementById('username').value = ''; 
             document.getElementById('password').value = ''; 
             
@@ -288,11 +340,9 @@
         }
 
         function checkLoginStatus() {
-            // Check the browser's Session Storage for a flag
             if (sessionStorage.getItem('isLoggedIn') === 'true' && sessionStorage.getItem('currentUsername')) {
                 showApp();
             } else {
-                // If not logged in, show the login form
                 document.getElementById('login-container').style.display = 'block';
                 document.getElementById('app-content').style.display = 'none';
             }
@@ -330,32 +380,41 @@
             alert('New Job Schedule Saved!');
         });
         
-        // Handle login form submission - UPDATED for multi-user array
-        document.getElementById('login-form').addEventListener('submit', function(event) {
+        // Handle login/register form submission (Consolidated handler)
+        document.getElementById('auth-form').addEventListener('submit', function(event) {
             event.preventDefault();
 
-            const enteredUsername = document.getElementById('username').value;
+            const enteredUsername = document.getElementById('username').value.trim();
             const enteredPassword = document.getElementById('password').value;
-            const errorMsg = document.getElementById('login-error');
 
-            // Check if the username exists AND the password matches
-            if (USERS[enteredUsername] && USERS[enteredUsername] === enteredPassword) {
-                // Successful login: Set flag AND store the username
-                sessionStorage.setItem('isLoggedIn', 'true');
-                sessionStorage.setItem('currentUsername', enteredUsername); // <-- Crucial for data keys
-                
-                errorMsg.style.display = 'none';
-                showApp();
+            if (isRegisterMode) {
+                // REGISTRATION LOGIC
+                registerUser(enteredUsername, enteredPassword);
+
             } else {
-                // Failed login: Show error message
-                errorMsg.style.display = 'block';
-                document.getElementById('password').value = ''; // Clear password field
+                // LOGIN LOGIC
+                const users = loadAllUsers();
+                const errorMsg = document.getElementById('login-error');
+                errorMsg.style.display = 'none';
+
+                // Check if the username exists AND the password matches
+                if (users[enteredUsername] && users[enteredUsername] === enteredPassword) {
+                    // Successful login
+                    sessionStorage.setItem('isLoggedIn', 'true');
+                    sessionStorage.setItem('currentUsername', enteredUsername);
+                    
+                    showApp();
+                } else {
+                    // Failed login
+                    errorMsg.textContent = 'Invalid Username or Password';
+                    errorMsg.style.display = 'block';
+                    document.getElementById('password').value = ''; 
+                }
             }
         });
 
         // Run this when the page first loads
         document.addEventListener('DOMContentLoaded', checkLoginStatus);
-
     </script>
 </body>
 </html>
