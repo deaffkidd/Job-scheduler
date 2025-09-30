@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Trane Tech Maintenance Schedules</title>
+    <title>Chadds Maintenance Schedules</title>
     <style>
         /* BASIC STYLING FOR MOBILE VIEW */
         body {
@@ -127,7 +127,9 @@
 
                 <label for="task">Task/Maintenance:</label>
                 <input type="text" id="task" required><br>
-
+                
+                <label for="estimated-hours">Estimated Hours:</label>
+                <input type="number" id="estimated-hours" min="0.5" step="0.5" required><br>
                 <label for="last-completed">Last Completed Date:</label>
                 <input type="date" id="last-completed" required><br>
 
@@ -175,7 +177,6 @@
         
         // Data Management - User-specific storage key
         function getCurrentUserKey() {
-            // This key will be unique for each user's data in localStorage
             const username = sessionStorage.getItem('currentUsername');
             return username ? `maintenanceJobs_${username}` : null;
         }
@@ -226,10 +227,11 @@
                     li.classList.add('due-soon');
                 }
 
-                // Added buttons for Mark Completed and Delete Job (with Flex styling)
+                // Updated li.innerHTML to include Estimated Hours
                 li.innerHTML = `
                     <strong>Customer:</strong> ${job.customer}<br>
                     <strong>Task:</strong> ${job.task}<br>
+                    <strong>Duration:</strong> ${job.estimatedHours} hours<br>
                     <strong>Next Due:</strong> ${job.nextDueDate} (${dayDiff} days away)<br>
                     <small>Frequency: ${job.frequencyDays} days</small>
                     <div style="display: flex; gap: 10px; margin-top: 10px;">
@@ -279,7 +281,7 @@
             renderJobs(); 
         }
 
-        // NEW FUNCTION: Toggles between Login and Register mode
+        // Toggles between Login and Register mode
         function toggleAuthMode(register) {
             isRegisterMode = register;
             document.getElementById('auth-title').textContent = isRegisterMode ? 'New User Registration' : 'Job Scheduler Login';
@@ -295,7 +297,7 @@
                 : 'Don\'t have an account? <a href="#" onclick="toggleAuthMode(true); return false;">Register Here</a>';
         }
 
-        // NEW FUNCTION: Handles User Registration
+        // Handles User Registration
         function registerUser(username, password) {
             const users = loadAllUsers();
             const errorMsg = document.getElementById('register-error');
@@ -352,12 +354,13 @@
         // EVENT LISTENERS
         // =========================================================
 
-        // Handle job form submission
+        // Handle job form submission - UPDATED to capture estimatedHours
         document.getElementById('job-form').addEventListener('submit', function(event) {
             event.preventDefault();
 
             const customer = document.getElementById('customer').value;
             const task = document.getElementById('task').value;
+            const estimatedHours = document.getElementById('estimated-hours').value; // <-- CAPTURED
             const lastCompletedDate = document.getElementById('last-completed').value;
             const frequencyDays = document.getElementById('frequency').value;
 
@@ -366,6 +369,7 @@
             const newJob = {
                 customer: customer,
                 task: task,
+                estimatedHours: estimatedHours, // <-- ADDED TO OBJECT
                 lastCompletedDate: lastCompletedDate,
                 frequencyDays: frequencyDays,
                 nextDueDate: nextDueDate
